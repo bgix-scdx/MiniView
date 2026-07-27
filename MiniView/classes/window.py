@@ -5,7 +5,7 @@ from ctypes import c_void_p, c_int, c_char_p, c_ulong, POINTER, c_uint
 from ctypes import c_long, Structure, CDLL, byref
 from time import sleep
 from .objects import Object
-
+from platform import system
 
 class Window():
     dimensions: Vector2D
@@ -23,14 +23,24 @@ class Window():
         self.dimensions = Vector2D(width, height)
         self.connection = Thread(target=self.open)
         self.connection.start()
-        while not self.ready:
+        self.__running = True
+        while not self.ready and self.__running:
             pass
         sleep(0.1)
 
     def open(self) -> None:
-        self.__running = True
-        self.lib = CDLL("libX11.so")
+        if system() == "Linux":
+            self.open_linux()
+        elif system() == "Mac"
+            print("--TODO")
+            self.__running = False
+            raise OSError            
+        else:
+            self.__running = False
+            raise OSError
 
+    def open_linux(self) -> None:
+        self.lib = CDLL("libX11.so")
         self.lib.XOpenDisplay.restype = c_void_p
         self.lib.XOpenDisplay.argtypes = [c_char_p]
         self.display = self.lib.XOpenDisplay(None)
