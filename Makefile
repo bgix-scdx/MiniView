@@ -16,9 +16,7 @@ install:
 	chmod 777 $(VENV)/bin/activate 
 	$(VENV)/bin/activate
 	$(PIP) install --upgrade pip
-	$(PIP) install pytest flake8 mypy poetry uv pydantic
-	$(VENV)/bin/poetry config cache-dir $(VENV)/poetrycache
-	$(VENV)/bin/poetry install
+	$(PIP) install pytest flake8 mypy poetry uv pydantic numpy
 	$(VENV)/bin/uv sync
 run:
 	echo "Running Project $(MAIN)"

@@ -1,43 +1,179 @@
-from .vector2D import Vector2D
-from typing import Any, List, Dict
-from threading import Thread
+from typing import Any, Callable
 from ctypes import c_void_p, c_int, c_char_p, c_ulong, POINTER, c_uint
-from ctypes import c_long, Structure, CDLL, byref
+from ctypes import c_long, Structure, CDLL, byref, c_bool
 from time import sleep
-from .objects import Object
 from platform import system
 
+
 class Window():
-    dimensions: Vector2D
-    name: str
+    # dimensions: Vector2D
+    name: str = "MiniView"
     __running: bool = False
     lib: Any
     display: Any
     __RW: Any
     ready: bool = False
-    objects: Dict[str, Object] = {}
     window: Any
+    icon: str = "MiniView/default_assets/images/icon.png"
 
-    def __init__(self, name: str, width: int, height: int) -> None:
+    def __init__(self, name: str, width: int, height: int,
+                 starting_func: Callable | None = None) -> None:
         self.name = name
-        self.dimensions = Vector2D(width, height)
-        self.connection = Thread(target=self.open)
-        self.connection.start()
+        self.dimensions = [width, height]
+        self.open()
         self.__running = True
-        while not self.ready and self.__running:
-            pass
-        sleep(0.1)
 
     def open(self) -> None:
-        if system() == "Linux":
-            self.open_linux()
-        elif system() == "Mac"
-            print("--TODO")
-            self.__running = False
-            raise OSError            
-        else:
+        self.__running = True
+        try:
+            if system() == "Linux":
+                self.open_linux()
+            elif system() == "Darwin":
+                self.open_mac()
+            else:
+                raise OSError
+        except OSError:
             self.__running = False
             raise OSError
+
+    def open_mac(self) -> None:
+        import ctypes.util
+        self.lib = CDLL(ctypes.util.find_library("objc"))
+        CDLL(ctypes.util.find_library("Cocoa"))
+
+        self.lib.objc_getClass.restype = c_void_p
+        self.lib.objc_getClass.argtypes = [c_char_p]
+
+        self.lib.sel_registerName.restype = c_void_p
+        self.lib.sel_registerName.argtypes = [c_char_p]
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+        self.lib.objc_msgSend.restype = c_void_p
+
+        NSApp = self.lib.objc_getClass(b"NSApplication")
+        SharedApp = self.lib.sel_registerName(b"sharedApplication")
+
+        app = self.lib.objc_msgSend(NSApp, SharedApp)
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_long]
+        self.lib.objc_msgSend(app,
+                              self.lib.sel_registerName(
+                                  b"setActivationPolicy:"), 0)
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+        self.lib.objc_msgSend(app,
+                              self.lib.sel_registerName(b"finishLaunching"))
+
+        class NSRect(Structure):
+            _fields_ = [
+                ("x", ctypes.c_double),
+                ("y", ctypes.c_double),
+                ("width", ctypes.c_double),
+                ("height", ctypes.c_double),
+            ]
+
+        frame = NSRect(100, 100, self.dimensions[0], self.dimensions[1])
+        style_mask = 1 | 2 | 4 | 8
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+        win = self.lib.objc_msgSend(self.lib.objc_getClass(b"NSWindow"),
+                                    self.lib.sel_registerName(b"alloc"))
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, NSRect,
+                                          c_ulong, c_ulong, c_bool]
+        style = b"initWithContentRect:styleMask:backing:defer:"
+        win = self.lib.objc_msgSend(win,
+                                    self.lib.sel_registerName(style),
+                                    frame, style_mask, 2, False)
+
+        # icon image
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_void_p]
+        ns_imagestr = self.lib.objc_msgSend(self.lib.objc_getClass(
+                                                b"NSString"),
+                                            self.lib.sel_registerName(
+                                                b"stringWithUTF8String:"),
+                                            str(self.icon).encode())
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+        ns_alloc = self.lib.objc_msgSend(self.lib.objc_getClass(b"NSImage"),
+                                         self.lib.sel_registerName(b"alloc"))
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_void_p]
+        ns_image = self.lib.objc_msgSend(ns_alloc,
+                                         self.lib.sel_registerName(
+                                             b"initWithContentsOfFile:"),
+                                         ns_imagestr)
+
+        self.lib.objc_msgSend(app,
+                              self.lib.sel_registerName(
+                                  b"setApplicationIconImage:"),
+                              ns_image)
+
+        # window name
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_char_p]
+        ns_title = self.lib.objc_msgSend(self.lib.objc_getClass(b"NSString"),
+                                         self.lib.sel_registerName(
+                                             b"stringWithUTF8String:"),
+                                         self.name.encode())
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_void_p]
+        self.lib.objc_msgSend(win, self.lib.sel_registerName(b"setTitle:"),
+                              ns_title)
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_bool]
+        self.lib.objc_msgSend(app,
+                              self.lib.sel_registerName(
+                                  b"activateIgnoringOtherApps:"),
+                              True)
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_void_p]
+        self.lib.objc_msgSend(win,
+                              self.lib.sel_registerName(
+                                  b"makeKeyAndOrderFront:"),
+                              None)
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+        self.lib.objc_msgSend(win, self.lib.sel_registerName(b"display"))
+
+        self.window = win
+
+        self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_char_p]
+
+        NSDate = self.lib.objc_getClass(b"NSDate")
+        NSDefaultRunLoopMode = self.lib.objc_msgSend(
+            self.lib.objc_getClass(b"NSString"),
+            self.lib.sel_registerName(b"stringWithUTF8String:"),
+            b"kCFRunLoopDefaultMode"
+        )
+
+        self.ready = True
+
+        while self.__running:
+            self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+            distant_future = self.lib.objc_msgSend(NSDate,
+                                                   self.lib.sel_registerName(
+                                                       b"distantFuture"))
+            self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p,
+                                              c_ulong, c_void_p, c_void_p,
+                                              c_bool]
+            event = self.lib.objc_msgSend(app, self.lib.sel_registerName(
+                b"nextEventMatchingMask:untilDate:inMode:dequeue:"),
+                c_ulong(0xFFFFFFFFFFFFFFFF), distant_future,
+                NSDefaultRunLoopMode, True)
+
+            if event:
+                self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p, c_void_p]
+                self.lib.objc_msgSend(app,
+                                      self.lib.sel_registerName(b"sendEvent:"),
+                                      event)
+            self.lib.objc_msgSend.argtypes = [c_void_p, c_void_p]
+            is_visible = self.lib.objc_msgSend(win, self.lib.sel_registerName(
+                                                b"isVisible"))
+            if not is_visible:
+                self.__running = False
+                break
+            sleep(1/120)
 
     def open_linux(self) -> None:
         self.lib = CDLL("libX11.so")
@@ -67,13 +203,13 @@ class Window():
         self.window = self.lib.XCreateSimpleWindow(self.display,
                                                    self.__RW,
                                                    0, 0,
-                                                   self.dimensions.x,
-                                                   self.dimensions.y,
+                                                   self.dimensions[0],
+                                                   self.dimensions[1],
                                                    0x000000,
                                                    0x000000)
 
-        self.lib.XMapWindow.argtypes = [c_void_p, c_ulong]
         self.lib.XMapWindow.restypes = c_int
+        self.lib.XMapWindow.argtypes = [c_void_p, c_ulong]
         self.lib.XMapWindow(self.display, self.window)
 
         self.lib.XSelectInput.argtypes = [c_void_p, c_ulong, c_long]
@@ -126,8 +262,6 @@ class Window():
 
         self.ready = True
         while self.__running:
-            for obj in self.objects.values():
-                obj.show(self)
             while self.lib.XPending(self.display):
                 self.lib.XNextEvent(self.display,
                                     byref(eventlist))
@@ -136,6 +270,3 @@ class Window():
                     break
             self.lib.XFlush(self.display)
             sleep(1/120)
-
-    def insert(self, object: Object, name: str) -> None:
-        self.objects[name] = object

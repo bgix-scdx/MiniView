@@ -1,5 +1,4 @@
-from MiniView import Window, Vector2D, Object
-from time import sleep
+from MiniView import Window
 
 try:
     visual: Window = Window("MiniView", 16 * 100, 10 * 100)
