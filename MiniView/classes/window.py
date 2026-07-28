@@ -14,7 +14,7 @@ class Window():
     __RW: Any
     ready: bool = False
     window: Any
-    icon: str = "MiniView/default_assets/images/icon.png"
+    icon: str = "MiniView/default_assets/images/tpm.jpg"
     fps: int = 120
 
     def __init__(self, name: str, width: int, height: int,
@@ -228,9 +228,10 @@ class Window():
                               ButtonReleaseMask | ExposureMask |
                               StructureNotifyMask)
 
+    
         class XEvent(Structure):
             _fields_ = [
-                ("pad", c_long * 24)
+                ("type", c_int),
             ]
 
         self.lib.XNextEvent.argtypes = [c_void_p, c_void_p]
@@ -239,6 +240,21 @@ class Window():
         self.lib.XInternAtom.argtypes = [c_void_p, c_char_p, c_int]
         self.lib.XInternAtom.restype = c_ulong
 
+        icon = Image.open(self.icon).convert("RGBA")
+        icon_data = [icon.size[0], icon.size[1]] + [
+            (a << 24) | (r << 16) | (g << 8) | b for a, r, g, b in list(icon.getdata())
+        ]
+
+        self.lib.XChangeProperty.argtypes = [
+            c_void_p, c_ulong, c_ulong, c_ulong, c_int, c_int, c_void_p, c_int
+        ]
+        self.lib.XChangeProperty.restype = c_int
+
+        netwm_icon = self.lib.XInternAtom(self.display, b"_NET_WM_ICON", False)
+        cardinal = 6
+        icon_array = (c_ulong * len(icon_data))(*icon_data)
+        self.lib.XChangeProperty(self.display, self.window, netwm_icon,
+                                 cardinal, 32, 0, icon_array, len(icon_data))
         self.lib.XSetWMProtocols.argtypes = [
             c_void_p, c_ulong, POINTER(c_ulong), c_int
         ]
@@ -261,29 +277,12 @@ class Window():
         self.lib.XPending.argtypes = [c_void_p]
         self.lib.XPending.restype = c_int
 
-        icon = Image.open(self.icon).convert("RGBA")
-        icon_data = [icon.size[0], icon.size[1]] + [
-            (a << 24) | (r << 16) | (g << 8) | b for a, r, g, b in list(icon.getdata())
-        ]
-
-        self.lib.XChangeProperty.argtypes = [
-            c_void_p, c_ulong, c_ulong, c_ulong, c_int, c_int, c_void_p, c_int
-        ]
-        self.lib.XChangeProperty.restype = c_int
-
-        netwm_icon = self.lib.XInternAtom(self.display, b"_NET_WM_ICON", False)
-        cardinal = 6
-        icon_array = (c_ulong * len(icon_data))(*icon_data)
-        self.lib.XChangeProperty(self.display, self.window, netwm_icon,
-                                 cardinal, 32, 0, icon_array, len(icon_data))
-
         self.ready = True
         while self.__running:
             while self.lib.XPending(self.display):
                 self.lib.XNextEvent(self.display,
                                     byref(eventlist))
-                print(eventlist.pad[0])
-                if eventlist.pad[0] == 33:
+                if eventlist.type == 33:
                     self.__running = False
                     break
             self.lib.XFlush(self.display)
