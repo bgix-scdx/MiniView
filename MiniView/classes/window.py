@@ -190,6 +190,9 @@ class Window():
         self.lib.XDefaultRootWindow.restype = c_ulong
         self.__RW = self.lib.XDefaultRootWindow(self.display)
 
+        self.lib.XSetIcon.argtypes = [c_char_p, c_ulong]
+        self.lib.XSetIcon(self.icon, self.window)
+
         self.lib.XCreateSimpleWindow.argtypes = [c_void_p,
                                                  c_ulong,
                                                  c_uint,
